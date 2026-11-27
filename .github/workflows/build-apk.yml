@@ -1,0 +1,134 @@
+# Repository file: .github/workflows/build-apk.yml
+# Upload a project ZIP to the repository root: it is extracted, built and signed automatically.
+# Needs the secrets CLOUD_KEYSTORE_BASE64, CLOUD_KEYSTORE_PASSWORD, CLOUD_KEY_ALIAS, CLOUD_KEY_PASSWORD.
+name: Build Release APK
+
+on:
+  push:
+    paths: ["*.zip", "!cloud-support.zip"]
+  workflow_dispatch:
+    inputs:
+      zip_name:
+        description: "ZIP file in the repository root (empty = the only ZIP there)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-apk-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    outputs:
+      name: ${{ steps.pick.outputs.name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Find the ZIP
+        id: pick
+        env:
+          WANTED: ${{ inputs.zip_name }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          ZIP="$WANTED"
+          # After a push: take the ZIP that was just added or changed.
+          if [ -z "$ZIP" ] && [ -n "$BEFORE" ] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            ZIP=$(git -c core.quotePath=false diff --name-only --diff-filter=AMR "$BEFORE" HEAD -- ':(glob)*.zip' | grep -vx 'cloud-support.zip' | head -1 || true)
+          fi
+          if [ -z "$ZIP" ]; then
+            mapfile -t ALL < <(find . -maxdepth 1 -type f -name '*.zip' ! -name 'cloud-support.zip' -printf '%f\n')
+            [ "${#ALL[@]}" -eq 1 ] || { echo "::error::Found ${#ALL[@]} ZIP files. Run the workflow manually and type the ZIP name."; exit 1; }
+            ZIP="${ALL[0]}"
+          fi
+          [[ "$ZIP" != */* && "$ZIP" == *.zip && -f "$ZIP" ]] || { echo "::error::ZIP not found in the repository root: $ZIP"; exit 1; }
+          NAME=$(basename "$ZIP" .zip | tr -c 'A-Za-z0-9._\n-' '-')
+          echo "Using $ZIP"
+          echo "zip=$ZIP" >> "$GITHUB_OUTPUT"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Extract
+        env:
+          ZIP: ${{ steps.pick.outputs.zip }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/project"
+          unzip -q "$ZIP" -d "$RUNNER_TEMP/project"
+          SETTINGS=$(find "$RUNNER_TEMP/project" \( -name settings.gradle -o -name settings.gradle.kts \) -not -path '*/__MACOSX/*' -printf '%d %p\n' | sort -n | head -1 | cut -d' ' -f2-)
+          [ -n "$SETTINGS" ] || { echo "::error::No settings.gradle in the ZIP. It must be a full Android project."; exit 1; }
+          echo "PROJECT_DIR=$(dirname "$SETTINGS")" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "17" }
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.7"
+
+      - name: Build release APK
+        run: gradle -p "$PROJECT_DIR" assembleRelease --no-daemon --console=plain --stacktrace
+
+      - name: Collect APK
+        run: |
+          set -euo pipefail
+          mapfile -t APKS < <(find "$PROJECT_DIR" -path '*/build/outputs/apk/*' -path '*release*' -name '*.apk')
+          [ "${#APKS[@]}" -eq 1 ] || { echo "::error::Expected 1 release APK, found ${#APKS[@]}"; exit 1; }
+          mkdir -p out && cp "${APKS[0]}" out/app.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-apk
+          path: out/app.apk
+          retention-days: 1
+          if-no-files-found: error
+
+  # Signing runs in a separate job, so the project's Gradle scripts never see the keystore.
+  sign:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NAME: ${{ needs.build.outputs.name }}
+    steps:
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "17" }
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: unsigned-apk
+          path: in
+
+      - name: Sign and verify
+        env:
+          KS_B64: ${{ secrets.CLOUD_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.CLOUD_KEYSTORE_PASSWORD }}
+          KS_ALIAS: ${{ secrets.CLOUD_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.CLOUD_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for v in KS_B64 KS_PASS KS_ALIAS KEY_PASS; do
+            [ -n "${!v}" ] || { echo "::error::Signing secret missing ($v). Add the CLOUD_* secrets."; exit 1; }
+          done
+          BT="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)"
+          echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          "$BT/zipalign" -p -f 4 in/app.apk "$RUNNER_TEMP/aligned.apk"
+          mkdir -p out
+          "$BT/apksigner" sign --ks "$RUNNER_TEMP/release.jks" --ks-key-alias "$KS_ALIAS" --ks-pass env:KS_PASS --key-pass env:KEY_PASS --out "out/$NAME-release.apk" "$RUNNER_TEMP/aligned.apk"
+          rm -f "$RUNNER_TEMP/release.jks"
+          "$BT/apksigner" verify --print-certs "out/$NAME-release.apk"
+          rm -f out/*.idsig
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ needs.build.outputs.name }}-release-apk
+          path: out/
+          retention-days: 7
+          if-no-files-found: error
