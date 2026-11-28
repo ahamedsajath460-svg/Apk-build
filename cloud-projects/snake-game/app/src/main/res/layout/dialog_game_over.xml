@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:padding="24dp">
+
+    <TextView
+        android:id="@+id/tvGameOver"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="Game Over"
+        android:textAlignment="center"
+        style="@style/TextAppearance.Material3.TitleLarge"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <TextView
+        android:id="@+id/tvScoreLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Score:"
+        style="@style/TextAppearance.Material3.BodyLarge"
+        app:layout_constraintTop_toBottomOf="@id/tvGameOver"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_margin="16dp" />
+
+    <TextView
+        android:id="@+id/tvFinalScore"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="0"
+        style="@style/TextAppearance.Material3.BodyLarge"
+        app:layout_constraintBaseline_toBaselineOf="@id/tvScoreLabel"
+        app:layout_constraintStart_toEndOf="@id/tvScoreLabel"
+        app:layout_constraintStart_margin="8dp" />
+
+    <TextView
+        android:id="@+id/tvHighScoreLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="High Score:"
+        style="@style/TextAppearance.Material3.BodyLarge"
+        app:layout_constraintTop_toBottomOf="@id/tvScoreLabel"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_margin="8dp" />
+
+    <TextView
+        android:id="@+id/tvHighScore"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="0"
+        style="@style/TextAppearance.Material3.BodyLarge"
+        app:layout_constraintBaseline_toBaselineOf="@id/tvHighScoreLabel"
+        app:layout_constraintStart_toEndOf="@id/tvHighScoreLabel"
+        app:layout_constraintStart_margin="8dp" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnRestart"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="Restart"
+        style="@style/Widget.Material3.Button"
+        app:layout_constraintTop_toBottomOf="@id/tvHighScoreLabel"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_margin="24dp" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>
