@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">Preview</string>
+    <string name="hello">Hello from Zen Cloud Studio</string>
+    <string name="tap_me">Tap me</string>
+    <string name="clicked">Clicked %1$d times</string>
+
+    <!-- UI strings for the HTML preview app -->
+    <string name="html_input_hint">Enter HTML, CSS, and JavaScript here</string>
+    <string name="preview_button">Render Preview</string>
+    <string name="preview_error">Failed to load preview</string>
+</resources>
