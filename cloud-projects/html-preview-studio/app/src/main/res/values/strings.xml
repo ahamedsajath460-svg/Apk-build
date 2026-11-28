@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">HTML Preview Studio</string>
+    <string name="button_render">Render Preview</string>
+    <string name="header_title">Live HTML Preview</string>
+    <string name="hello">Hello from Zen Cloud Studio</string>
+    <string name="tap_me">Tap me</string>
+    <string name="clicked">Clicked %1$d times</string>
+</resources>
